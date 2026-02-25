@@ -5,7 +5,7 @@ import { Geist, Raleway } from "next/font/google";
 
 import { TRPCReactProvider } from "@/trpc/react";
 import { cn } from "@/lib/utils";
-
+import { ClerkProvider } from "@clerk/nextjs";
 const raleway = Raleway({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
@@ -23,10 +23,12 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={cn(geist.variable, raleway.variable, "dark")}>
-      <body>
-        <TRPCReactProvider>{children}</TRPCReactProvider>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en" className={cn(geist.variable, raleway.variable, "dark")}>
+        <body>
+          <TRPCReactProvider>{children}</TRPCReactProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }
