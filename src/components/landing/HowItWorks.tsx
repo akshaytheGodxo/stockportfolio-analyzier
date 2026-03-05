@@ -1,5 +1,3 @@
-
-
 "use client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { UserPlus, Search, TrendingUp, CheckCircle2 } from "lucide-react"
@@ -69,5 +67,3 @@ export function HowItWorks() {
     </section>
   )
 }
-
-
