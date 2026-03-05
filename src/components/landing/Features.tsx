@@ -1,5 +1,3 @@
-
-
 "use client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { TrendingUp, BarChart3, Bell, Wallet, Zap, Shield } from "lucide-react"
@@ -67,5 +65,3 @@ export function Features() {
     </section>
   )
 }
-
-
