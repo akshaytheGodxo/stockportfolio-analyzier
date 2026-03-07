@@ -1,0 +1,8 @@
+streamlit
+pandas
+numpy
+yfinance
+pandas-ta
+TA-Lib
+feedparser
+requests
