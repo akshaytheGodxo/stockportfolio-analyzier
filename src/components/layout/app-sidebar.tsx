@@ -15,8 +15,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ChevronDown, Plus, User2, TrendingUp, BriefcaseBusiness, Calculator, BrainCog } from "lucide-react"
 
 const sidebar_menu = [
-  { id: "1", name: "Your Portfolio", href: "/portfolio", icon: BriefcaseBusiness },
-  { id: "2", name: "Market Trends", href: "/trends", icon: TrendingUp },
+  { id: "1", name: "Your Portfolio", href: "/dashboard/portfolio", icon: BriefcaseBusiness },
+  { id: "2", name: "Market Trends", href: "/dashboard/trends", icon: TrendingUp },
   { id: "3", name: "Stock Calculator", href: "/calculate", icon: Calculator },
   { id: "4", name: "Dlorious", href: "/dlorious", icon: BrainCog },
 ]
