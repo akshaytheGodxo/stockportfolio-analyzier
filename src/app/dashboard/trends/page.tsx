@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, TrendingDown, Search, Plus } from 'lucide-react';
+import { TrendingUp, TrendingDown, Search, Plus, X, Activity, BarChart3, Wallet } from 'lucide-react';
 
 interface StockData {
   symbol: string;
@@ -27,6 +27,30 @@ interface GlobalQuote {
 
 const DEFAULT_STOCKS = ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN', 'META'];
 
+function Sparkline({ positive }: { positive: boolean }) {
+  const points = positive
+    ? '0,28 8,22 16,26 24,18 32,20 40,12 48,16 56,8 64,10 72,4'
+    : '0,4 8,10 16,8 24,16 32,12 40,20 48,18 56,26 64,22 72,28';
+  return (
+    <svg width="72" height="32" viewBox="0 0 72 32" fill="none">
+      <defs>
+        <linearGradient id={`grad-${positive}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={positive ? '#10b981' : '#f43f5e'} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={positive ? '#10b981' : '#f43f5e'} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polyline
+        points={points}
+        fill="none"
+        stroke={positive ? '#10b981' : '#f43f5e'}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export default function TrendsPage() {
   const [stocks, setStocks] = useState<StockData[]>([]);
   const [searchSymbol, setSearchSymbol] = useState('');
@@ -44,43 +68,17 @@ export default function TrendsPage() {
       for (const symbol of watchlist) {
         try {
           const response = await fetch(`/api/check-stock?symbol=${symbol}`);
-          
           if (!response.ok) {
-            const error = `API error for ${symbol}: ${response.statusText}`;
-            console.error(error);
-            errorMessages.push(error);
+            errorMessages.push(`API error for ${symbol}: ${response.statusText}`);
             continue;
           }
-
           const data = (await response.json()) as Record<string, unknown>;
-          console.log(`Full response for ${symbol}:`, JSON.stringify(data, null, 2));
-
-          // Check for API rate limit or error messages
-          if (typeof data.Note === 'string') {
-            console.warn(`API Note for ${symbol}: ${data.Note}`);
-            errorMessages.push(`${symbol}: ${data.Note}`);
-            setError(data.Note);
-            continue;
-          }
-
-          if (typeof data.Information === 'string') {
-            console.warn(`API Information for ${symbol}: ${data.Information}`);
-            errorMessages.push(`${symbol}: ${data.Information}`);
-            continue;
-          }
-
-          if (typeof data.Error === 'string') {
-            console.warn(`API Error for ${symbol}: ${data.Error}`);
-            errorMessages.push(`${symbol}: ${data.Error}`);
-            continue;
-          }
-
+          if (typeof data.Note === 'string') { setError(data.Note); continue; }
+          if (typeof data.Information === 'string') { errorMessages.push(`${symbol}: ${data.Information}`); continue; }
+          if (typeof data.Error === 'string') { errorMessages.push(`${symbol}: ${data.Error}`); continue; }
           const quote = data['Global Quote'] as GlobalQuote | undefined;
-          
           if (quote && Object.keys(quote).length > 0) {
             const price = parseFloat(quote['05. price'] ?? '0');
-            
-            // Only add if we have valid price data
             if (!isNaN(price) && price > 0) {
               newStocks.push({
                 symbol: quote['01. symbol'] ?? symbol,
@@ -90,44 +88,29 @@ export default function TrendsPage() {
                 volume: quote['06. volume'] ?? 'N/A',
                 timestamp: quote['07. latest trading day'] ?? new Date().toISOString().split('T')[0]!,
               });
-              console.log(`Successfully loaded ${symbol}:`, { price, volume: quote['06. volume'] });
-            } else {
-              console.warn(`Invalid price data for ${symbol}:`, quote);
-              errorMessages.push(`${symbol}: Invalid or missing price data`);
-            }
-          } else {
-            console.warn(`No Global Quote data for ${symbol}`, data);
-            errorMessages.push(`${symbol}: No quote data received`);
-          }
+            } else errorMessages.push(`${symbol}: Invalid price`);
+          } else errorMessages.push(`${symbol}: No data`);
         } catch (err) {
-          const errorMsg = `Failed to fetch ${symbol}: ${err instanceof Error ? err.message : String(err)}`;
-          console.error(errorMsg);
-          errorMessages.push(errorMsg);
+          errorMessages.push(`Failed to fetch ${symbol}: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
 
       if (errorMessages.length > 0 && newStocks.length === 0) {
         setError(errorMessages.slice(0, 2).join(' | '));
       }
-
       setStocks(newStocks);
       setLoading(false);
     };
 
     void fetchStockData();
-    const interval = setInterval(() => {
-      void fetchStockData();
-    }, 30000); // Refresh every 30 seconds
+    const interval = setInterval(() => void fetchStockData(), 30000);
     return () => clearInterval(interval);
   }, [watchlist]);
 
-  const handleAddStock = async () => {
-    const upperSymbol = searchSymbol.toUpperCase().trim();
-    if (!upperSymbol || watchlist.includes(upperSymbol)) {
-      return;
-    }
-
-    setWatchlist([...watchlist, upperSymbol]);
+  const handleAddStock = () => {
+    const upper = searchSymbol.toUpperCase().trim();
+    if (!upper || watchlist.includes(upper)) return;
+    setWatchlist([...watchlist, upper]);
     setSearchSymbol('');
   };
 
@@ -137,235 +120,726 @@ export default function TrendsPage() {
   };
 
   const sortedStocks = [...stocks].sort((a, b) => b.changePercent - a.changePercent);
+  const avgPrice = stocks.length ? stocks.reduce((s, x) => s + x.price, 0) / stocks.length : 0;
+  const avgChange = stocks.length ? stocks.reduce((s, x) => s + x.changePercent, 0) / stocks.length : 0;
+  const gainers = sortedStocks.filter(s => s.changePercent >= 0);
+  const losers = [...sortedStocks].reverse().filter(s => s.changePercent < 0);
 
   return (
-    <div className="p-6 space-y-6 bg-linear-to-br from-slate-900 to-slate-800 min-h-screen">
-      {/* Header */}
-      <div>
-        <h1 className="text-4xl font-bold text-white mb-2">Market Trends</h1>
-        <p className="text-gray-400">Track stock trends and market movements in real-time</p>
-      </div>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;500;600;700;800&display=swap');
 
-      {/* Search Section */}
-      <Card className="bg-slate-800 border-slate-700">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
-            <Search className="w-5 h-5" />
-            Add Stock to Watchlist
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-2">
-            <Input
-              placeholder="Enter stock symbol (e.g., AAPL)"
+        .trends-root {
+          font-family: 'Syne', sans-serif;
+          background: #080c14;
+          min-height: 100vh;
+          padding: 2.5rem 2rem;
+          position: relative;
+          overflow-x: hidden;
+          color: #e2e8f0;
+        }
+
+        .trends-root::before {
+          content: '';
+          position: fixed;
+          top: -20%;
+          left: -10%;
+          width: 55vw;
+          height: 55vw;
+          background: radial-gradient(circle, rgba(16,185,129,0.045) 0%, transparent 65%);
+          pointer-events: none;
+          z-index: 0;
+        }
+
+        .trends-root::after {
+          content: '';
+          position: fixed;
+          bottom: -15%;
+          right: -10%;
+          width: 45vw;
+          height: 45vw;
+          background: radial-gradient(circle, rgba(99,102,241,0.05) 0%, transparent 65%);
+          pointer-events: none;
+          z-index: 0;
+        }
+
+        .trends-inner {
+          position: relative;
+          z-index: 1;
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+
+        /* Header */
+        .t-header {
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          margin-bottom: 2.5rem;
+          flex-wrap: wrap;
+          gap: 1rem;
+        }
+
+        .t-title-block {}
+
+        .t-eyebrow {
+          font-family: 'DM Mono', monospace;
+          font-size: 0.7rem;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: #10b981;
+          margin-bottom: 0.4rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .t-eyebrow::before {
+          content: '';
+          display: inline-block;
+          width: 18px;
+          height: 1px;
+          background: #10b981;
+        }
+
+        .t-title {
+          font-size: clamp(2rem, 4vw, 3rem);
+          font-weight: 800;
+          color: #f1f5f9;
+          line-height: 1;
+          letter-spacing: -0.03em;
+          margin: 0;
+        }
+
+        .t-title span {
+          color: #10b981;
+        }
+
+        .t-live-badge {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          background: rgba(16,185,129,0.08);
+          border: 1px solid rgba(16,185,129,0.2);
+          border-radius: 100px;
+          padding: 0.35rem 0.9rem;
+          font-family: 'DM Mono', monospace;
+          font-size: 0.7rem;
+          color: #10b981;
+          letter-spacing: 0.08em;
+        }
+
+        .t-live-dot {
+          width: 6px;
+          height: 6px;
+          background: #10b981;
+          border-radius: 50%;
+          animation: pulse-dot 2s infinite;
+        }
+
+        @keyframes pulse-dot {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(0.8); }
+        }
+
+        /* Search */
+        .t-search-bar {
+          background: rgba(255,255,255,0.025);
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 16px;
+          padding: 1.25rem 1.5rem;
+          display: flex;
+          gap: 0.75rem;
+          align-items: center;
+          margin-bottom: 2rem;
+          backdrop-filter: blur(8px);
+        }
+
+        .t-search-icon {
+          color: #64748b;
+          flex-shrink: 0;
+        }
+
+        .t-search-input {
+          flex: 1;
+          background: transparent !important;
+          border: none !important;
+          outline: none !important;
+          box-shadow: none !important;
+          font-family: 'DM Mono', monospace;
+          font-size: 0.85rem;
+          color: #e2e8f0 !important;
+          letter-spacing: 0.06em;
+        }
+
+        .t-search-input::placeholder { color: #475569; }
+
+        .t-search-input:focus {
+          ring: none !important;
+          border: none !important;
+          box-shadow: none !important;
+        }
+
+        .t-add-btn {
+          background: #10b981 !important;
+          color: #022c22 !important;
+          border: none !important;
+          border-radius: 10px !important;
+          font-family: 'Syne', sans-serif !important;
+          font-weight: 600 !important;
+          font-size: 0.8rem !important;
+          padding: 0.5rem 1.1rem !important;
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          cursor: pointer;
+          transition: all 0.15s;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+
+        .t-add-btn:hover {
+          background: #34d399 !important;
+          transform: translateY(-1px);
+        }
+
+        /* Error */
+        .t-error {
+          background: rgba(244,63,94,0.07);
+          border: 1px solid rgba(244,63,94,0.2);
+          border-radius: 12px;
+          padding: 1rem 1.25rem;
+          margin-bottom: 1.5rem;
+          font-family: 'DM Mono', monospace;
+          font-size: 0.78rem;
+          color: #fda4af;
+          line-height: 1.6;
+        }
+
+        /* Loading */
+        .t-loading {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 5rem 0;
+          gap: 1rem;
+        }
+
+        .t-spinner {
+          width: 36px;
+          height: 36px;
+          border: 2px solid rgba(16,185,129,0.1);
+          border-top-color: #10b981;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .t-loading p {
+          font-family: 'DM Mono', monospace;
+          font-size: 0.75rem;
+          color: #475569;
+          letter-spacing: 0.08em;
+        }
+
+        /* Stats row */
+        .t-stats-row {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 1rem;
+          margin-bottom: 1.75rem;
+        }
+
+        @media (max-width: 640px) { .t-stats-row { grid-template-columns: 1fr; } }
+
+        .t-stat-card {
+          background: rgba(255,255,255,0.025);
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 16px;
+          padding: 1.25rem 1.5rem;
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          backdrop-filter: blur(8px);
+          transition: border-color 0.2s;
+        }
+
+        .t-stat-card:hover { border-color: rgba(255,255,255,0.13); }
+
+        .t-stat-icon {
+          width: 40px;
+          height: 40px;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .t-stat-icon.green { background: rgba(16,185,129,0.1); color: #10b981; }
+        .t-stat-icon.indigo { background: rgba(99,102,241,0.1); color: #818cf8; }
+        .t-stat-icon.amber { background: rgba(245,158,11,0.1); color: #fbbf24; }
+
+        .t-stat-label {
+          font-family: 'DM Mono', monospace;
+          font-size: 0.65rem;
+          color: #64748b;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          margin-bottom: 0.2rem;
+        }
+
+        .t-stat-value {
+          font-size: 1.5rem;
+          font-weight: 700;
+          color: #f1f5f9;
+          line-height: 1;
+          letter-spacing: -0.02em;
+        }
+
+        .t-stat-value.positive { color: #10b981; }
+        .t-stat-value.negative { color: #f43f5e; }
+
+        /* Gainers/Losers grid */
+        .t-gl-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1rem;
+          margin-bottom: 1.75rem;
+        }
+
+        @media (max-width: 768px) { .t-gl-grid { grid-template-columns: 1fr; } }
+
+        .t-panel {
+          background: rgba(255,255,255,0.025);
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 16px;
+          overflow: hidden;
+          backdrop-filter: blur(8px);
+        }
+
+        .t-panel-header {
+          padding: 1rem 1.25rem 0.75rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .t-panel-title {
+          font-size: 0.78rem;
+          font-weight: 600;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          color: #94a3b8;
+        }
+
+        .t-gl-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0.7rem 1.25rem;
+          border-bottom: 1px solid rgba(255,255,255,0.04);
+          transition: background 0.15s;
+        }
+
+        .t-gl-row:last-child { border-bottom: none; }
+        .t-gl-row:hover { background: rgba(255,255,255,0.025); }
+
+        .t-gl-sym {
+          font-weight: 700;
+          font-size: 0.95rem;
+          color: #f1f5f9;
+          letter-spacing: 0.03em;
+          width: 60px;
+        }
+
+        .t-gl-price {
+          font-family: 'DM Mono', monospace;
+          font-size: 0.8rem;
+          color: #64748b;
+        }
+
+        .t-gl-change {
+          font-family: 'DM Mono', monospace;
+          font-size: 0.85rem;
+          font-weight: 500;
+          text-align: right;
+        }
+
+        .t-gl-change.up { color: #10b981; }
+        .t-gl-change.down { color: #f43f5e; }
+
+        /* Table */
+        .t-table-panel {
+          background: rgba(255,255,255,0.02);
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 16px;
+          overflow: hidden;
+          backdrop-filter: blur(8px);
+        }
+
+        .t-table-header {
+          padding: 1rem 1.5rem 0.75rem;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .t-table-title {
+          font-size: 0.78rem;
+          font-weight: 600;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          color: #94a3b8;
+        }
+
+        .t-table-count {
+          font-family: 'DM Mono', monospace;
+          font-size: 0.65rem;
+          color: #475569;
+          letter-spacing: 0.08em;
+          background: rgba(255,255,255,0.05);
+          padding: 0.2rem 0.6rem;
+          border-radius: 100px;
+        }
+
+        table.t-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+
+        .t-table thead tr {
+          border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .t-table thead th {
+          padding: 0.65rem 1.5rem;
+          font-family: 'DM Mono', monospace;
+          font-size: 0.62rem;
+          color: #475569;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          font-weight: 400;
+          text-align: left;
+        }
+
+        .t-table thead th:not(:first-child) { text-align: right; }
+        .t-table thead th:last-child { text-align: center; }
+
+        .t-table tbody tr {
+          border-bottom: 1px solid rgba(255,255,255,0.035);
+          transition: background 0.12s;
+        }
+
+        .t-table tbody tr:last-child { border-bottom: none; }
+        .t-table tbody tr:hover { background: rgba(255,255,255,0.025); }
+
+        .t-table td {
+          padding: 0.8rem 1.5rem;
+          font-size: 0.88rem;
+        }
+
+        .t-table .col-sym {
+          font-weight: 700;
+          color: #f1f5f9;
+          letter-spacing: 0.04em;
+        }
+
+        .t-table .col-num {
+          font-family: 'DM Mono', monospace;
+          font-size: 0.82rem;
+          color: #cbd5e1;
+          text-align: right;
+        }
+
+        .t-table .col-change {
+          font-family: 'DM Mono', monospace;
+          font-size: 0.82rem;
+          text-align: right;
+        }
+
+        .t-table .col-change.up { color: #10b981; }
+        .t-table .col-change.down { color: #f43f5e; }
+
+        .t-table .col-vol {
+          font-family: 'DM Mono', monospace;
+          font-size: 0.75rem;
+          color: #475569;
+          text-align: right;
+        }
+
+        .t-table .col-spark { text-align: right; }
+
+        .t-table .col-action { text-align: center; }
+
+        .t-remove-btn {
+          background: transparent;
+          border: 1px solid rgba(244,63,94,0.2);
+          border-radius: 6px;
+          color: #f43f5e;
+          font-size: 0.7rem;
+          font-family: 'Syne', sans-serif;
+          font-weight: 600;
+          padding: 0.2rem 0.5rem;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.3rem;
+          transition: all 0.15s;
+          opacity: 0.5;
+        }
+
+        .t-remove-btn:hover {
+          background: rgba(244,63,94,0.1);
+          border-color: rgba(244,63,94,0.5);
+          opacity: 1;
+        }
+
+        .t-badge-up {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          background: rgba(16,185,129,0.1);
+          border: 1px solid rgba(16,185,129,0.15);
+          color: #10b981;
+          padding: 0.15rem 0.5rem;
+          border-radius: 6px;
+          font-family: 'DM Mono', monospace;
+          font-size: 0.75rem;
+          font-weight: 500;
+          white-space: nowrap;
+        }
+
+        .t-badge-down {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          background: rgba(244,63,94,0.08);
+          border: 1px solid rgba(244,63,94,0.15);
+          color: #f43f5e;
+          padding: 0.15rem 0.5rem;
+          border-radius: 6px;
+          font-family: 'DM Mono', monospace;
+          font-size: 0.75rem;
+          font-weight: 500;
+          white-space: nowrap;
+        }
+
+        /* Empty state */
+        .t-empty {
+          text-align: center;
+          padding: 5rem 0;
+        }
+
+        .t-empty p {
+          font-family: 'DM Mono', monospace;
+          color: #475569;
+          font-size: 0.8rem;
+          letter-spacing: 0.05em;
+          line-height: 1.8;
+        }
+
+        /* Divider line */
+        .t-divider {
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06) 30%, rgba(255,255,255,0.06) 70%, transparent);
+          margin: 0.25rem 0 1.75rem;
+        }
+      `}</style>
+
+      <div className="trends-root">
+        <div className="trends-inner">
+
+          {/* Header */}
+          <div className="t-header">
+            <div className="t-title-block">
+              <div className="t-eyebrow">Market Trends</div>
+              <h1 className="t-title">Live <span>Watchlist</span></h1>
+            </div>
+            <div className="t-live-badge">
+              <span className="t-live-dot" />
+              LIVE · AUTO-REFRESH 30s
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="t-search-bar">
+            <Search className="t-search-icon" size={16} />
+            <input
+              className="t-search-input"
+              placeholder="Add a symbol — e.g. NVDA, BRK.B"
               value={searchSymbol}
               onChange={(e) => setSearchSymbol(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddStock()}
-              className="bg-slate-700 border-slate-600 text-white placeholder-gray-400"
             />
-            <Button
-              onClick={handleAddStock}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <Plus className="w-4 h-4 mr-2" />
+            <button className="t-add-btn" onClick={handleAddStock}>
+              <Plus size={14} />
               Add
-            </Button>
+            </button>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Error Alert */}
-      {error && (
-        <div className="bg-red-900 border border-red-700 rounded-lg p-4 space-y-2">
-          <p className="text-red-200 font-semibold">⚠️ Data Fetch Error</p>
-          <p className="text-red-200 text-sm">{error}</p>
-          {error.includes('API key') && (
-            <div className="text-red-100 text-xs mt-3 pt-3 border-t border-red-700 space-y-1">
-              <p>To fix this issue:</p>
-              <ol className="list-decimal list-inside space-y-1">
-                <li>Get a free API key from <a href="https://www.alphavantage.co/" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-50">alphavantage.co</a></li>
-                <li>Create a <code className="bg-red-800 px-2 py-1 rounded">.env.local</code> file in the project root</li>
-                <li>Add: <code className="bg-red-800 px-2 py-1 rounded">ALPHA_VANTAGE_KEY=your_api_key_here</code></li>
-                <li>Restart the development server</li>
-              </ol>
+          {/* Error */}
+          {error && (
+            <div className="t-error">
+              ⚠ {error}
+              {error.includes('API key') && (
+                <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(244,63,94,0.15)' }}>
+                  Get a free key at alphavantage.co · Add ALPHA_VANTAGE_KEY to .env.local
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
 
-      {/* Loading State */}
-      {loading && stocks.length === 0 && (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          <p className="text-gray-400 mt-4">Loading market data...</p>
-          <p className="text-gray-500 text-xs mt-2">Fetching stock data from Alpha Vantage</p>
-        </div>
-      )}
+          {/* Loading */}
+          {loading && stocks.length === 0 && (
+            <div className="t-loading">
+              <div className="t-spinner" />
+              <p>FETCHING MARKET DATA</p>
+            </div>
+          )}
 
-      {/* No Data State */}
-      {stocks.length === 0 && !loading && !error && (
-        <div className="text-center py-12">
-          <p className="text-gray-400 mb-4">No stocks in your watchlist</p>
-          <p className="text-gray-500 text-sm">Add stocks above to track their trends and performance</p>
-        </div>
-      )}
+          {/* Empty */}
+          {!loading && !error && stocks.length === 0 && (
+            <div className="t-empty">
+              <p>No stocks loaded.<br />Add symbols above to begin tracking.</p>
+            </div>
+          )}
 
-      {/* Main Stats Grid */}
-      {stocks.length > 0 && (
-        <>
-          {/* Top Gainers and Losers */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Top Gainers */}
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-green-500" />
-                  Top Gainers
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {sortedStocks.slice(0, 3).map((stock) => (
-                  <div
-                    key={stock.symbol}
-                    className="flex justify-between items-center py-2 border-b border-slate-700 last:border-0"
-                  >
-                    <div>
-                      <p className="font-semibold text-white">{stock.symbol}</p>
-                      <p className="text-gray-400 text-sm">${stock.price.toFixed(2)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-green-400">
-                        +{stock.changePercent.toFixed(2)}%
-                      </p>
-                      <p className="text-gray-400 text-sm">+${stock.change.toFixed(2)}</p>
+          {stocks.length > 0 && (
+            <>
+              {/* Stats row */}
+              <div className="t-stats-row">
+                <div className="t-stat-card">
+                  <div className="t-stat-icon green"><Wallet size={18} /></div>
+                  <div>
+                    <div className="t-stat-label">Avg. Price</div>
+                    <div className="t-stat-value">${avgPrice.toFixed(2)}</div>
+                  </div>
+                </div>
+                <div className="t-stat-card">
+                  <div className="t-stat-icon indigo"><Activity size={18} /></div>
+                  <div>
+                    <div className="t-stat-label">Avg. Change</div>
+                    <div className={`t-stat-value ${avgChange >= 0 ? 'positive' : 'negative'}`}>
+                      {avgChange >= 0 ? '+' : ''}{avgChange.toFixed(2)}%
                     </div>
                   </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            {/* Top Losers */}
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <TrendingDown className="w-5 h-5 text-red-500" />
-                  Top Losers
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {sortedStocks.slice(-3).reverse().map((stock) => (
-                  <div
-                    key={stock.symbol}
-                    className="flex justify-between items-center py-2 border-b border-slate-700 last:border-0"
-                  >
-                    <div>
-                      <p className="font-semibold text-white">{stock.symbol}</p>
-                      <p className="text-gray-400 text-sm">${stock.price.toFixed(2)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-red-400">
-                        {stock.changePercent.toFixed(2)}%
-                      </p>
-                      <p className="text-gray-400 text-sm">${stock.change.toFixed(2)}</p>
-                    </div>
+                </div>
+                <div className="t-stat-card">
+                  <div className="t-stat-icon amber"><BarChart3 size={18} /></div>
+                  <div>
+                    <div className="t-stat-label">Tracked</div>
+                    <div className="t-stat-value">{stocks.length} <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>assets</span></div>
                   </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* All Stocks Table */}
-          <Card className="bg-slate-800 border-slate-700">
-            <CardHeader>
-              <CardTitle className="text-white">Complete Watchlist</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-700">
-                      <th className="text-left py-3 text-gray-300 font-semibold">Symbol</th>
-                      <th className="text-right py-3 text-gray-300 font-semibold">Price</th>
-                      <th className="text-right py-3 text-gray-300 font-semibold">Change</th>
-                      <th className="text-right py-3 text-gray-300 font-semibold">Change %</th>
-                      <th className="text-right py-3 text-gray-300 font-semibold">Volume</th>
-                      <th className="text-center py-3 text-gray-300 font-semibold">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {stocks.map((stock) => (
-                      <tr key={stock.symbol} className="border-b border-slate-700 hover:bg-slate-700/50">
-                        <td className="py-3 text-white font-semibold">{stock.symbol}</td>
-                        <td className="text-right py-3 text-white">${stock.price.toFixed(2)}</td>
-                        <td className={`text-right py-3 font-semibold ${stock.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {stock.change >= 0 ? '+' : ''}{stock.change.toFixed(2)}
-                        </td>
-                        <td className={`text-right py-3 font-semibold flex items-center justify-end gap-1 ${stock.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {stock.changePercent >= 0 ? (
-                            <TrendingUp className="w-4 h-4" />
-                          ) : (
-                            <TrendingDown className="w-4 h-4" />
-                          )}
-                          {stock.changePercent >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%
-                        </td>
-                        <td className="text-right py-3 text-gray-400">
-                          {stock.volume}
-                        </td>
-                        <td className="text-center py-3">
-                          {watchlist.length > 1 && (
-                            <button
-                              onClick={() => handleRemoveStock(stock.symbol)}
-                              className="text-red-400 hover:text-red-300 text-sm font-medium"
-                            >
-                              Remove
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                </div>
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Stats Overview Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-gray-400 text-sm">Average Price</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-white">
-                  ${(stocks.reduce((sum, s) => sum + s.price, 0) / stocks.length).toFixed(2)}
-                </p>
-              </CardContent>
-            </Card>
+              {/* Gainers / Losers */}
+              <div className="t-gl-grid">
+                {/* Gainers */}
+                <div className="t-panel">
+                  <div className="t-panel-header">
+                    <TrendingUp size={14} color="#10b981" />
+                    <span className="t-panel-title" style={{ color: '#10b981' }}>Top Gainers</span>
+                  </div>
+                  {gainers.slice(0, 3).map(stock => (
+                    <div className="t-gl-row" key={stock.symbol}>
+                      <span className="t-gl-sym">{stock.symbol}</span>
+                      <Sparkline positive={true} />
+                      <div style={{ textAlign: 'right' }}>
+                        <div className="t-gl-change up">+{stock.changePercent.toFixed(2)}%</div>
+                        <div className="t-gl-price">${stock.price.toFixed(2)}</div>
+                      </div>
+                    </div>
+                  ))}
+                  {gainers.length === 0 && (
+                    <div style={{ padding: '1.25rem', textAlign: 'center', fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', color: '#475569' }}>No gainers today</div>
+                  )}
+                </div>
 
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-gray-400 text-sm">Average Change</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className={`text-3xl font-bold ${stocks.reduce((sum, s) => sum + s.changePercent, 0) / stocks.length >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {(stocks.reduce((sum, s) => sum + s.changePercent, 0) / stocks.length).toFixed(2)}%
-                </p>
-              </CardContent>
-            </Card>
+                {/* Losers */}
+                <div className="t-panel">
+                  <div className="t-panel-header">
+                    <TrendingDown size={14} color="#f43f5e" />
+                    <span className="t-panel-title" style={{ color: '#f43f5e' }}>Top Losers</span>
+                  </div>
+                  {losers.slice(0, 3).map(stock => (
+                    <div className="t-gl-row" key={stock.symbol}>
+                      <span className="t-gl-sym">{stock.symbol}</span>
+                      <Sparkline positive={false} />
+                      <div style={{ textAlign: 'right' }}>
+                        <div className="t-gl-change down">{stock.changePercent.toFixed(2)}%</div>
+                        <div className="t-gl-price">${stock.price.toFixed(2)}</div>
+                      </div>
+                    </div>
+                  ))}
+                  {losers.length === 0 && (
+                    <div style={{ padding: '1.25rem', textAlign: 'center', fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', color: '#475569' }}>No losers today</div>
+                  )}
+                </div>
+              </div>
 
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-gray-400 text-sm">Total Volume</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-white">
-                  {stocks.length} Assets
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </>
-      )}
-    </div>
+              {/* Full table */}
+              <div className="t-table-panel">
+                <div className="t-table-header">
+                  <span className="t-table-title">Complete Watchlist</span>
+                  <span className="t-table-count">{stocks.length} symbols</span>
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="t-table">
+                    <thead>
+                      <tr>
+                        <th>Symbol</th>
+                        <th>Price</th>
+                        <th>Change</th>
+                        <th>Change %</th>
+                        <th>Volume</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stocks.map(stock => {
+                        const up = stock.changePercent >= 0;
+                        return (
+                          <tr key={stock.symbol}>
+                            <td className="col-sym">{stock.symbol}</td>
+                            <td className="col-num">${stock.price.toFixed(2)}</td>
+                            <td className={`col-change ${up ? 'up' : 'down'}`}>
+                              {up ? '+' : ''}{stock.change.toFixed(2)}
+                            </td>
+                            <td className="col-action">
+                              <span className={up ? 't-badge-up' : 't-badge-down'}>
+                                {up ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                                {up ? '+' : ''}{stock.changePercent.toFixed(2)}%
+                              </span>
+                            </td>
+                            <td className="col-vol">
+                              {Number(stock.volume).toLocaleString() || stock.volume}
+                            </td>
+                            <td className="col-action">
+                              {watchlist.length > 1 && (
+                                <button className="t-remove-btn" onClick={() => handleRemoveStock(stock.symbol)}>
+                                  <X size={10} />
+                                  Remove
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </>
   );
 }
