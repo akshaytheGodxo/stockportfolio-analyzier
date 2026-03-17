@@ -15,8 +15,8 @@ export const auth = betterAuth({
   plugins: [nextCookies()],
   socialProviders: {
     github: {
-      clientId: env.BETTER_AUTH_GITHUB_CLIENT_ID!,
-      clientSecret: env.BETTER_AUTH_GITHUB_CLIENT_SECRET!,
+      clientId: env.BETTER_AUTH_GITHUB_CLIENT_ID,
+      clientSecret: env.BETTER_AUTH_GITHUB_CLIENT_SECRET,
       redirectURI: "http://localhost:3000/api/auth/callback/github",
     },
   },
