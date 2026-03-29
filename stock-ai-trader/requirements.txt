@@ -6,3 +6,5 @@ pandas-ta
 TA-Lib
 feedparser
 requests
+uvicorn
+FastAPI
