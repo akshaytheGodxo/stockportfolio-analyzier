@@ -74,7 +74,7 @@ export function Hero() {
             <Button
               size="lg"
               className="text-lg px-8 py-6 group"
-              onClick={() => router.push("/signup")}
+              onClick={() => router.push("/auth/signin")}
             >
               Get Started Free
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
