@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      SKIP_ENV_VALIDATION: "1"
+      DATABASE_URL: "postgresql://localhost:5432/test"
+      NEXT_PUBLIC_SUPABASE_URL: "https://example.com"
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test"
+      BETTER_AUTH_BASE_URL: "http://localhost"
+      BETTER_AUTH_SECRET: "test-secret"
+      BETTER_AUTH_GITHUB_CLIENT_ID: "test-client"
+      BETTER_AUTH_GITHUB_CLIENT_SECRET: "test-secret"
+      SUPABASE_SERVICE_ROLE_KEY: "test-key"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify formatting
+        run: npm run format:check
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run typecheck
+        run: npm run typecheck
+
+      - name: Build Next.js app
+        run: npm run build
