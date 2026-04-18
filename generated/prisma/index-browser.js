@@ -129,6 +129,47 @@ exports.Prisma.PostScalarFieldEnum = {
   createdById: 'createdById'
 };
 
+exports.Prisma.WatchlistScalarFieldEnum = {
+  id: 'id',
+  symbol: 'symbol',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  userId: 'userId'
+};
+
+exports.Prisma.PortfolioScalarFieldEnum = {
+  id: 'id',
+  symbol: 'symbol',
+  shares: 'shares',
+  averagePrice: 'averagePrice',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  userId: 'userId'
+};
+
+exports.Prisma.TransactionScalarFieldEnum = {
+  id: 'id',
+  symbol: 'symbol',
+  type: 'type',
+  shares: 'shares',
+  price: 'price',
+  total: 'total',
+  createdAt: 'createdAt',
+  portfolioId: 'portfolioId',
+  userId: 'userId'
+};
+
+exports.Prisma.AlertScalarFieldEnum = {
+  id: 'id',
+  symbol: 'symbol',
+  type: 'type',
+  targetValue: 'targetValue',
+  isActive: 'isActive',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  userId: 'userId'
+};
+
 exports.Prisma.UserScalarFieldEnum = {
   id: 'id',
   name: 'name',
@@ -193,6 +234,10 @@ exports.Prisma.NullsOrder = {
 
 exports.Prisma.ModelName = {
   Post: 'Post',
+  Watchlist: 'Watchlist',
+  Portfolio: 'Portfolio',
+  Transaction: 'Transaction',
+  Alert: 'Alert',
   User: 'User',
   Session: 'Session',
   Account: 'Account',
