@@ -23,7 +23,29 @@ interface WatchlistItem {
   createdAt: Date;
 }
 
+type StockAnalysis = {
+  ticker: string;
+  candlestick_patterns: Record<string, string>;
+  overall_signal: {
+    decision: string;
+    confidence: number;
+    bullish: number;
+    bearish: number;
+    neutral: number;
+  };
+  technical_indicators: {
+    RSI: number;
+    MACD: number;
+    EMA50: number;
+  };
+  fundamentals: Record<string, string>;
+  news: string[];
+};
+
 export default function WatchlistPage() {
+  const [analysisMap, setAnalysisMap] = useState<
+    Record<string, StockAnalysis | null>
+  >({});
   const [watchlistItems, setWatchlistItems] = useState<WatchlistItem[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newSymbol, setNewSymbol] = useState("");
@@ -34,10 +56,11 @@ export default function WatchlistPage() {
   const watchlistQuery = api.watchlist.getAll.useQuery();
   const addMutation = api.watchlist.add.useMutation();
   const removeMutation = api.watchlist.remove.useMutation();
-  const stockQuoteQuery = api.stock.getMultipleQuotes.useQuery(
-    { symbols: watchlistItems.map((w) => w.symbol) },
-    { enabled: watchlistItems.length > 0 },
-  );
+
+  // const stockAnalysisQuery = api.stock.getAnalysisMultiple.useQuery(
+  //   { symbols: watchlistItems.map((w) => w.symbol) },
+  //   { enabled: watchlistItems.length > 0 },
+  // );
 
   useEffect(() => {
     if (watchlistQuery.data) {
@@ -51,6 +74,37 @@ export default function WatchlistPage() {
       setLoading(false);
     }
   }, [watchlistQuery.data]);
+  console.log(watchlistItems);
+  // console.log(process.env.NEXT_PUBLIC_BASE_URL);
+  useEffect(() => {
+    if (watchlistItems.length === 0) return;
+
+    watchlistItems.forEach((item) => {
+      fetch(`/api/fetch-stock?ticker=${item.symbol}`)
+        .then((res) => res.json())
+        .then((response) => {
+          console.log(`Received for ${item.symbol}:`, response);
+
+          const data =
+            response.data && typeof response.data === "object"
+              ? response.data
+              : response;
+
+          setAnalysisMap((prev) => ({
+            ...prev,
+            [item.symbol]: data,
+          }));
+        })
+        .catch((err) => {
+          console.error(`Error for ${item.symbol}:`, err);
+
+          setAnalysisMap((prev) => ({
+            ...prev,
+            [item.symbol]: null,
+          }));
+        });
+    });
+  }, [watchlistItems]);
 
   const handleAddToWatchlist = async () => {
     if (!newSymbol.trim()) return;
@@ -64,7 +118,7 @@ export default function WatchlistPage() {
       console.error("Error adding to watchlist:", error);
     }
   };
-
+  console.log(analysisMap);
   const handleRemoveFromWatchlist = async (symbol: string) => {
     try {
       await removeMutation.mutateAsync({ symbol });
@@ -74,10 +128,8 @@ export default function WatchlistPage() {
       console.error("Error removing from watchlist:", error);
     }
   };
-
   const getStockData = (symbol: string) => {
-    if (!stockQuoteQuery.data) return null;
-    return stockQuoteQuery.data.find((s) => s?.symbol === symbol);
+    return analysisMap[symbol] || null;
   };
 
   if (loading) {
@@ -135,53 +187,89 @@ export default function WatchlistPage() {
                   </div>
 
                   {stock ? (
-                    <div className="space-y-3">
+                    <div className="space-y-4">
+                      {/* Signal */}
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm text-gray-400">Signal</p>
+                        <Badge
+                          className={`text-white ${
+                            stock.overall_signal.decision === "BUY"
+                              ? "bg-green-500"
+                              : stock.overall_signal.decision === "SELL"
+                                ? "bg-red-500"
+                                : "bg-yellow-500"
+                          }`}
+                        >
+                          {stock.overall_signal.decision}
+                        </Badge>
+                      </div>
+
+                      {/* Confidence */}
                       <div>
-                        <p className="text-sm text-gray-400">Current Price</p>
-                        <p className="text-2xl font-bold">
-                          ${stock.price.toFixed(2)}
+                        <p className="text-sm text-gray-400">Confidence</p>
+                        <p className="text-lg font-semibold">
+                          {stock.overall_signal.confidence}%
                         </p>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-gray-400">24h Change</p>
-                          <div
-                            className={`flex items-center gap-1 text-lg font-semibold ${
-                              stock.changePercent >= 0
-                                ? "text-green-500"
-                                : "text-red-500"
-                            }`}
-                          >
-                            {stock.changePercent >= 0 ? (
-                              <TrendingUp className="h-4 w-4" />
-                            ) : (
-                              <TrendingDown className="h-4 w-4" />
-                            )}
-                            {stock.change > 0 ? "+" : ""}
-                            {stock.change.toFixed(2)} (
-                            {Math.abs(stock.changePercent).toFixed(2)}
-                            %)
+                      {/* Indicators */}
+                      <div className="border-t pt-3">
+                        <p className="mb-2 text-sm text-gray-400">Indicators</p>
+                        <div className="grid grid-cols-3 gap-2 text-sm">
+                          <div>
+                            <p className="text-gray-400">RSI</p>
+                            <p
+                              className={`font-semibold ${
+                                stock.technical_indicators.RSI > 70
+                                  ? "text-red-500"
+                                  : stock.technical_indicators.RSI < 30
+                                    ? "text-green-500"
+                                    : ""
+                              }`}
+                            >
+                              {stock.technical_indicators.RSI.toFixed(2)}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-gray-400">MACD</p>
+                            <p className="font-semibold">
+                              {stock.technical_indicators.MACD.toFixed(2)}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-gray-400">EMA50</p>
+                            <p className="font-semibold">
+                              {stock.technical_indicators.EMA50.toFixed(2)}
+                            </p>
                           </div>
                         </div>
                       </div>
 
-                      <div className="border-t pt-2">
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>
-                            <p className="text-gray-400">Volume</p>
-                            <p className="font-semibold">{stock.volume}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-400">Last Updated</p>
-                            <p className="font-semibold">{stock.timestamp}</p>
-                          </div>
-                        </div>
+                      {/* Pattern Summary */}
+                      <div className="border-t pt-3 text-sm">
+                        <p className="text-gray-400">Patterns</p>
+                        <p>
+                          B: {stock.overall_signal.bullish} | S:{" "}
+                          {stock.overall_signal.bearish} | N:{" "}
+                          {stock.overall_signal.neutral}
+                        </p>
+                      </div>
+
+                      {/* News */}
+                      <div className="border-t pt-3">
+                        <p className="mb-2 text-sm text-gray-400">News</p>
+                        <ul className="space-y-1 text-sm">
+                          {stock.news.slice(0, 2).map((n, i) => (
+                            <li key={i}>• {n}</li>
+                          ))}
+                        </ul>
                       </div>
                     </div>
                   ) : (
                     <div className="py-8 text-center text-gray-400">
-                      Loading price data...
+                      Loading analysis...
                     </div>
                   )}
                 </CardContent>
