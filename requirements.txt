@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+langchain
+langgraph
+openai
+faiss-cpu
+yfinance
+requests
+python-dotenv
+pydantic
+sentence-transformers
+huggingface_hub
