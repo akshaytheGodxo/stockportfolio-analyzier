@@ -90,21 +90,20 @@ model Alert {
 }
 
 model User {
-  id             String          @id
-  name           String //@db.Text
-  email          String
-  emailVerified  Boolean         @default(false)
-  image          String? //@db.Text
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @default(now()) @updatedAt
-  sessions       Session[]
-  accounts       Account[]
-  posts          Post[]
-  watchlists     Watchlist[]
-  portfolios     Portfolio[]
-  transactions   Transaction[]
-  alerts         Alert[]
-  watchlistItems WatchlistItem[]
+  id            String        @id
+  name          String //@db.Text
+  email         String
+  emailVerified Boolean       @default(false)
+  image         String? //@db.Text
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @default(now()) @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  posts         Post[]
+  watchlists    Watchlist[]
+  portfolios    Portfolio[]
+  transactions  Transaction[]
+  alerts        Alert[]
 
   @@unique([email])
   @@map("user")
