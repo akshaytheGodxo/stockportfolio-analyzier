@@ -6,7 +6,11 @@ import { db } from "@/server/db";
 
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_BASE_URL,
-  trustedOrigins: [process.env.BETTER_AUTH_BASE_URL!, "http://localhost:3000"],
+  trustedOrigins: [
+    env.BETTER_AUTH_BASE_URL,
+    "http://localhost:3000",
+    "/\.vercel\.app$/",
+  ],
   database: prismaAdapter(db, {
     provider: "postgresql", // or "sqlite" or "mysql"
   }),
@@ -23,6 +27,24 @@ export const auth = betterAuth({
   },
   advanced: {
     cookies: {
+      sessionToken: {
+        attributes: {
+          sameSite: "none",
+          secure: true,
+        },
+      },
+      callbackUrl: {
+        attributes: {
+          sameSite: "none",
+          secure: true,
+        },
+      },
+      csrfToken: {
+        attributes: {
+          sameSite: "none",
+          secure: true,
+        },
+      },
       state: {
         attributes: {
           sameSite: "none",
