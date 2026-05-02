@@ -18,8 +18,7 @@ const navItems = [
   { href: "/dashboard/search", label: "Search Stocks", icon: Search },
   { href: "/dashboard/watchlist", label: "Watchlist", icon: Star },
   { href: "/dashboard/portfolio", label: "Portfolio", icon: Wallet },
-  { href: "/dashboard/alerts", label: "Alerts", icon: Bell },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
+
   { href: "/dashboard/askai", label: "Ask AI", icon: TrainFront },
 ];
 
